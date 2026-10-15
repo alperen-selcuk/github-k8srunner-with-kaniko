@@ -1,0 +1,62 @@
+# RUNNER_TOKEN mode: every replica registers once with the 1-hour token from the secret and keeps
+# its registration on its own PVC, so pod restarts do not need a new token.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gh-runner
+  namespace: gh-runner
+spec:
+  serviceName: gh-runner
+  replicas: 2
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: gh-runner
+  template:
+    metadata:
+      labels:
+        app: gh-runner
+    spec:
+      serviceAccountName: gh-runner
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: runner
+        image: yourregistry/yourimage:latest # set per environment (kustomize images) or replace
+        imagePullPolicy: Always
+        env:
+        # comma separated, used in workflows as: runs-on: [self-hosted, linux, kaniko]
+        - name: RUNNER_LABELS
+          value: kaniko
+        envFrom:
+        - secretRef:
+            name: gh-runner   # GITHUB_URL + RUNNER_TOKEN
+        # kaniko builds run in userspace and need root, but not privileged mode
+        securityContext:
+          runAsUser: 0
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+        volumeMounts:
+        - name: runner
+          mountPath: /runner
+        - name: registry-auth
+          mountPath: /kaniko/.docker
+          readOnly: true
+      volumes:
+      - name: registry-auth
+        secret:
+          secretName: registry-auth   # config.json for kaniko push
+          optional: true
+  volumeClaimTemplates:
+  - metadata:
+      name: runner
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 20Gi

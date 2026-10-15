@@ -1,0 +1,7 @@
+# Base: RUNNER_TOKEN mode. Each install is an overlay under environments/ that sets
+# namespace, image, labels and replicas (see environments/example).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- rbac.yaml
+- statefulset.yaml

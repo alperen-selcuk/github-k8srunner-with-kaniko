@@ -1,0 +1,8 @@
+# Local tooling
+.claude/
+.ignore
+/graft/
+
+# Never commit credentials
+*.env
+config.json

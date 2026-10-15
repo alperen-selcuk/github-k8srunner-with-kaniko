@@ -1,0 +1,42 @@
+# Example overlay for a dedicated cluster: runners get cluster-admin and can deploy to every namespace
+#   kubectl apply -k environments/example-cluster-admin
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: github-runner
+resources:
+- ../../kubernetes
+- clusterrolebinding.yaml
+images:
+- name: yourregistry/yourimage
+  newName: registry.example.com/github-runner
+  newTag: v0.1
+patches:
+- target:
+    kind: StatefulSet
+    name: gh-runner
+  patch: |-
+    - op: replace
+      path: /metadata/name
+      value: cluster-runner
+    - op: replace
+      path: /spec/serviceName
+      value: cluster-runner
+    - op: replace
+      path: /spec/replicas
+      value: 2
+    - op: replace
+      path: /spec/template/spec/containers/0/env/0/value
+      value: kaniko,cluster-admin
+    # pull from a private registry with a docker-registry secret created in the namespace
+    - op: add
+      path: /spec/template/spec/imagePullSecrets
+      value:
+      - name: reg-cred
+# the namespace-scoped admin binding from the base is replaced by cluster-admin
+- patch: |-
+    $patch: delete
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: gh-runner-admin
+      namespace: gh-runner

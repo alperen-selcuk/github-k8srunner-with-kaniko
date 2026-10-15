@@ -1,0 +1,22 @@
+# Example overlay: runners limited to their own namespace (namespace-scoped admin from the base)
+#   kubectl apply -k environments/example
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gh-runner
+resources:
+- ../../kubernetes
+images:
+- name: yourregistry/yourimage
+  newName: registry.example.com/github-runner
+  newTag: v0.1
+replicas:
+- name: gh-runner
+  count: 2
+patches:
+- target:
+    kind: StatefulSet
+    name: gh-runner
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/env/0/value
+      value: kaniko,helm

@@ -1,0 +1,60 @@
+# GITHUB_PAT mode: each pod fetches its own registration token, runs one job per registration
+# and unregisters on shutdown. No persistent storage needed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gh-runner
+  namespace: gh-runner
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gh-runner
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: gh-runner
+    spec:
+      serviceAccountName: gh-runner
+      automountServiceAccountToken: true
+      # give start.sh time to unregister the runner from GitHub
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: runner
+        image: yourregistry/yourimage:latest # set per environment (kustomize images) or replace
+        imagePullPolicy: Always
+        env:
+        # comma separated, used in workflows as: runs-on: [self-hosted, linux, kaniko]
+        - name: RUNNER_LABELS
+          value: kaniko
+        envFrom:
+        - secretRef:
+            name: gh-runner   # GITHUB_URL + GITHUB_PAT
+        # kaniko builds run in userspace and need root, but not privileged mode
+        securityContext:
+          runAsUser: 0
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+        volumeMounts:
+        - name: runner
+          mountPath: /runner
+        - name: registry-auth
+          mountPath: /kaniko/.docker
+          readOnly: true
+      volumes:
+      - name: runner
+        emptyDir: {}
+      - name: registry-auth
+        secret:
+          secretName: registry-auth   # config.json for kaniko push
+          optional: true
